@@ -1,0 +1,1 @@
+print("Have some Fan")
