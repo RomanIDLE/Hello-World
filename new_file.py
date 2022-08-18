@@ -1,2 +1,2 @@
 print('Yappi!')
-print('1234')
+print('01234')
