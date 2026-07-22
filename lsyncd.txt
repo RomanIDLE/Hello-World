@@ -1,0 +1,275 @@
+1. Параметры синхронизации
+
+1.1 Базовые понятия
+
+Стандарт - через rsync (эффективно только для локальной синхронизации);
+Удаленная - rsyncssh (эффективно для синхронизации между удаленными хостами);
+Прямая - через параметр direct (схоже с параметром rsync, параметры настройки в файле конфигурации те же, что и rsync. Отличие: первичная синхронизация выполняется с помощью утилиты rsync, но послежующее поддержание синхронизации выполняется базовыми командами cp rm mv. Максимально эффективно для локальной синхронизации файлов без возможностей rsync).
+
+Возможна синхронизация на несколько хостов одновременно. По идее, лучше когда инициализацию синхронизации делает удаленный хост, чтобы не нагружать основную машину, но тут такой возможности нет.
+
+Подавляющее число параметров синхронизации берутся от rsync. Отдельные настройки именно lsyncd идут в секции settings, например:
+===========
+settings {
+   logfile    = "/tmp/lsyncd.log",
+   statusFile = "/tmp/lsyncd.status",
+   nodaemon   = true,
+}
+============
+Возможно настроить логирование событий в файле конфигурациию (как ведется ротация?).
+
+Варианты settings:
+
+logfile		=	FILENAME	logs into this file
+pidfile		=	FILENAME	logs PID into this file
+nodaemon	=	BOOL	does not detach
+statusFile	=	FILENAME	periodically writes a status report to this file
+statusInterval	=	NUMBER	writes the status file at shortest after this number of seconds has passed (default: 10)
+logfacility	=	STRING	syslog facility, default "user"
+logident	=	STRING	syslog identification (tag), default "lsyncd"
+insist		=	BOOL	keep running at startup although one or more targets failed due to not being reachable.
+inotifyMode	=	STRING	Specifies on inotify systems what kind of changes to listen to. Can be "Modify", "CloseWrite" (default) or "CloseWrite or Modify".
+maxProcesses	=	NUMBER	Lysncd will not spawn more than these number of processes. This adds across all sync{}s.
+maxDelays	=	NUMBER	When this amount of delayed events is queued, actions will be spawned, even below the delay timer.
+
+1.2 Файл конфигурации
+
+Параметры синхронизации папок описываются в блоках sync (их может быть несколько):
+==============
+sync {
+   default.rsync,
+   source = "DIRNAME",
+   target = "DIRNAME"
+}
+==============
+
+Часть параметров синхронизируется между всеми блоками sync.
+
+1.2 default.rsync
+
+По умолчанию конфигурация rsync будет агрегировать события с задержкой до нескольких секунд или до 1000 отдельных необъединяемых событий, в зависимости от того, что произойдет раньше. Затем будет запущен один экземпляр Rsync с фильтром всех измененных файлов.
+Пример:
+==============
+sync {
+    default.rsync,
+    source    = "/home/user/src/",
+    target    = "foohost.com:~/trg/",
+    delay     = 15,
+    rsync     = {
+        binary   = "/usr/local/bin/rsync",
+        archive  = true,
+        compress = true
+    }
+}
+===============
+
+
+Параметр	Тип	Значение по умолчанию	Пояснение
+acls	BOOL	false	Сохранять списки управления доступом (ACL) при синхронизации .
+append	BOOL	false	Добавлять данные в конец файлов, а не перезаписывать их целиком. Полезно для логов .
+append-verify	BOOL	false	То же, что и append, но с дополнительной проверкой, чтобы убедиться, что данные действительно добавляются в конец .
+archive	BOOL	false	Режим архивации (-a). Эквивалентен набору опций: -rlptgoD. Включает рекурсивность, сохранение прав, владельцев, групп, времени и ссылок .
+backup	BOOL	false	Создавать резервные копии файлов на приемнике, которые заменяются или удаляются .
+backup_dir	DIR	false	Директория для хранения резервных копий .
+binary	FILENAME	"/usr/bin/rsync"	Путь к исполняемому файлу rsync .
+checksum	BOOL	false	Использовать контрольные суммы для проверки изменений, вместо времени и размера файла .
+chmod	STRING		Изменить права доступа к файлам на приемнике .
+chown	USER:GROUP		Изменить владельца и группу файлов на приемнике .
+compress	BOOL	false	Сжимать данные при передаче (-z). Полезно для медленных сетей, но может нагружать CPU .
+copy_dirlinks	BOOL	false	Копировать содержимое символических ссылок на директории, а не сами ссылки .
+copy_links	BOOL	false	Копировать содержимое символических ссылок на файлы, а не сами ссылки .
+cvs_exclude	BOOL		Исключать файлы, которые обычно игнорируются CVS (например, .cvsignore) .
+dry_run	BOOL	false	Пробный запуск без фактической синхронизации .
+exclude	PATTERN/ TABLE		Исключить файлы и директории, соответствующие шаблону (или таблице шаблонов) .
+excludeFrom	FILENAME		Исключить файлы, используя список шаблонов из указанного файла .
+executability	BOOL	false	Сохранять флаг исполнимости файлов .
+existing	BOOL	false	Обновлять только существующие на приемнике файлы .
+filter	TABLE of STRINGS		Использовать расширенные правила фильтрации rsync (например, +, -) .
+group	BOOL	false	Сохранять группу файлов .
+groupmap	STRING		Сопоставлять группы с исходного сервера на приемник .
+hard_links	BOOL	false	Сохранять жесткие ссылки .
+ignore_times	BOOL	false	Игнорировать время модификации при определении изменений .
+inplace	BOOL	false	Обновлять файлы на месте, без создания временной копии. Экономит дисковое пространство, но рискованно .
+ipv4	BOOL	false	Использовать только IPv4 для соединений .
+ipv6	BOOL	false	Использовать только IPv6 для соединений .
+links	BOOL	true	Копировать символические ссылки как ссылки .
+one_file_system	BOOL	false	Не выходить за пределы одной файловой системы .
+owner	BOOL	false	Сохранять владельца файлов .
+password_file	FILENAME		Файл с паролем для подключения к rsync-демону .
+perms	BOOL	false	Сохранять права доступа к файлам .
+protect_args	BOOL	true	Безопасно передавать аргументы, защищая от спецсимволов .
+prune_empty_dirs	BOOL	false	Удалять пустые директории на приемнике .
+quiet	BOOL	false	Подавлять вывод rsync .
+rsh	COMMAND		Использовать указанную команду для удаленного подключения (например, ssh) .
+rsync_path	PATH		Путь к rsync на удаленном хосте .
+sparse	BOOL	false	Эффективно копировать разреженные файлы, экономя место .
+suffix	SUFFIX		Суффикс для резервных копий .
+temp_dir	DIR		Директория для временных файлов .
+times	BOOL	true	Сохранять время модификации файлов .
+update	BOOL	false	Обновлять только файлы новее на источнике .
+usermap	STRING		Сопоставлять пользователей с исходного сервера на приемник .
+verbose	BOOL	false	Подробный вывод rsync .
+whole_file	BOOL	false	Копировать файлы целиком, не используя алгоритм дельта-копирования .
+xattrs	BOOL	false	Сохранять расширенные атрибуты файлов .
+_extra	TABLE of STRINGS		Важно: Механизм для передачи дополнительных аргументов rsync, не охваченных основными параметрами. Например: { "--bwlimit=5000" }
+
+
+1.3 default.rsyncssh
+Эта конфигурация отличается от стандартной конфигурации rsync тем, что она использует команды ssh для локального перемещения файлов или каталогов на целевом хосте вместо их удаления и повторной передачи. Эта конфигурация запускает процессы Rsync, такие как default.rsync, но дополнительно порождает команды /usr/bin/ssh HOST mv ORIGIN DESTINATION.
+
+binary	=	FILENAME	Lsyncd вызывает этот двоичный файл как ssh (по умолчанию: /usr/bin/ssh)
+identityFile	=	FILE	Использует этот файл для идентификации аутентификации с открытым ключом.
+options	=	TABLE	Таблица дополнительных расширенных параметров, передаваемых в параметр -o ssh.
+port	=	PORT	Добавляет --port=PORT к ssh-вызову.
+_extra	=	STRING TABLE	Подобно rsync._extra, это можно использовать в качестве быстрого обходного пути, если это абсолютно необходимо.
+
+Примеры:
+==========
+settings {
+    logfile = "/var/log/lsyncd.log",
+    statusFile = "/var/log/lsyncd-status.log",
+    statusInterval = 20
+}
+
+sync {
+   default.rsyncssh,
+   source="/srcdir",
+   host="remotehost",
+   excludeFrom="/etc/lsyncd.exclude",
+   targetdir="/dstdir",
+   rsync = {
+     archive = true,
+     compress = false,
+     whole_file = false
+   },
+   ssh = {
+     port = 1234
+   }
+}
+=================
+
+1.4 default.direct (в начале все описано)
+Пример:
+=====
+sync {
+    default.direct,
+    source  = "/home/user/src/",
+    target  = "/home/user/trg/"
+}
+=======
+
+1.5 Исключения файлов
+
+excludeFrom	=	FILENAME	loads exclusion rules from this file, on rule per line
+exclude	=	LIST	loads exclusion rules from this list of strings
+
+Example:
+========
+sync {
+    default.rsync,
+    source    = "/home/user/src/",
+    targetdir = "/home/user/dst/",
+    exclude = { '_.bak' , '_.tmp' }
+}
+===========
+
+1.6 Удаление файлов
+По умочанию включено удаление файлов в конечной директории для синхронизации с директорией-источником. Но можно это поведение перенастроить.
+
+delete	=	true	Default. Lsyncd will delete on the target whatever is not in the source. At startup and what's being deleted during normal operation.
+delete	=	false	Lsyncd will not delete any files on the target. Not on startup nor on normal operation. (Overwrites are possible though)
+delete	=	'startup'	Lsyncd will delete files on the target when it starts up but not on normal operation.
+delete	=	'running'	Lsyncd will not delete files on the target when it starts up but will delete those that are removed during normal operation.
+
+1.7 Тунели
+
+Lsyncd способен запускать и управлять внешними программами, обеспечивая туннель для передачи данных. Кроме того, он может создавать несколько соединений и балансировать нагрузку между ними. Туннель создается с помощью функции tunnel.
+
+==========
+sync {
+    default.rsync,
+    tunnel    = tunnel {
+        command = {"ssh", "-N", "-L", "localhost:5432:localhost:873", "tunnel@testmachine"},
+    }
+    target    = "rsync://localhost:5432/projects",
+    source    = "/home/user/src/",
+}
+===========
+
+Аргументы 		Описание 	Значение по умолчанию 		Допустимые значения
+mode 			Режим работы туннеля 		command command, pool
+command 		Обязательный параметр Команда для выполнения 	nil Таблица аргументов
+parallel 		Количество соединений для запуска. Только для режима пула 	1 1+
+retryDelay 		Время ожидания до перезапуска туннеля в секундах 	10 Число
+readyDelay 		Секунды после запуска программы, после которых туннель считается активным 	5 Число
+localhost 		Имя переменной локального хоста 	localhost Строка
+
+1.8 Пулл
+
+В режиме пула lsyncd выделяет новый локальный порт, который затем передается в качестве переменной команде хоста. Все переменные можно заменить синтаксисом ^variable. Расширенную конфигурацию см. в файле ../../../../examples/lrsyncssh-tunnel.lua.
+
+Список переменных
+Имя Описание
+localport Порт, выделенный для выбранного соединения
+localhost Используемое локальное имя хоста. localhost по умолчанию
+
+
+Пример: два ssh тунеля и четыре rsync процесса одновременно, используйте дополнительные передачи для всех файлов размером более 30 МБ:
+==========
+sync {
+    default.rsync,
+    tunnel = tunnel {
+        command = {"ssh", "-N", "-L", "localhost:^localport:localhost:873", "user@testmachine"},
+        mode = "pool",
+        parallel = 2,
+    },
+    source = "/data/projects",
+    target    = "rsync://localhost:^localport/projects",
+    delay = 5,
+    batchSizeLimit = 1024 * 1024 * 30,
+    maxProcesses = 4
+}
+=========
+
+Когда запускается синхронизация с параметром туннеля, все события ставятся в очередь до тех пор, пока туннель не достигнет состояния UP, то есть когда один успешный процесс туннеля существует не менее readyDelay секунд. Неактивные процессы туннеля автоматически перезапускаются. Когда количество процессов туннеля падает до 0, туннель возвращается в состояние CONNECTING. Между каждой попыткой перезапуска туннеля существует задержка retryDelay секунд.
+
+Как только туннель становится UP, инициируется полная передача. Последующие передачи затем распределяются между несколькими соединениями.
+
+1.9 Periodic Full-Sync
+С помощью функции crontab можно запустить команду полной синхронизации из lsync. Для этого необходимо, чтобы в системе был установлен lua-crontab. Конфигурация crontab принимает список шаблонов crontab, для которых будет запущена полная синхронизация.
+Пример:
+========
+sync {
+    ...
+    crontab = {
+            -- does a full sync once a day at 3:00:01
+            "1 0 3 * * *",
+    },
+    ...
+}
+========
+
+FIELD	VALUES	SPECIAL CHARACTERS
+Seconds	0-59	, - *
+Minutes	0-59	, - *
+Hours	0-23	, - *
+Day of month	1-31	, - *
+Month	1-12 or JAN-DEC	, - *
+Day of week	0-6 or SUN-SAT	, - *
+
+1.10 Настройка ядра
+
+У inotify есть три параметра (см. ls /proc/sys/fs/inotify/):
+max_queued_events — максимальное число событий в очереди; default = 16384;
+max_user_instances — сколько инстансов inotify может запустить один пользоваетль; default = 128;
+max_user_watches — сколько файлов может отслеживать один пользоваль; default = 8192.
+
+Рабочие значения:
+==========
+echo "
+fs.inotify.max_user_watches = 16777216 # 
+fs.inotify.max_queued_events = 65536
+" >> /etc/sysctl.conf
+echo 16777216 > /proc/sys/fs/inotify/max_user_watches
+echo 65536 > /proc/sys/fs/inotify/max_queued_events
+==========
